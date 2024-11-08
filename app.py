@@ -13,6 +13,10 @@ socketio = SocketIO(app)
 # Registro das rotas
 app.register_blueprint(device_routes)
 
+@app.route('/')
+def home():
+    return render_template('index.html')  # Renderiza o HTML na rota inicial
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()

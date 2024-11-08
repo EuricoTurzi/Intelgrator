@@ -31,9 +31,21 @@ class DeviceData(db.Model):
     gps_fix = db.Column(db.Boolean)
     temperature = db.Column(db.Float)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Relação com células vizinhas
     neighbor_cells = db.relationship('NeighborCell', backref='device_data', cascade="all, delete-orphan")
+    
+    def to_dict(self):
+        return {
+            "device_id": self.device_id,
+            "backup_voltage": self.backup_voltage,
+            "online_status": self.online_status,
+            "mode": self.mode,
+            "gps_date": self.gps_date.isoformat() if self.gps_date else None,
+            "gps_time": self.gps_time.strftime("%H:%M:%S") if self.gps_time else None,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "gps_fix": self.gps_fix,
+            # Inclua outros campos, se necessário
+        }
 
 # Modelo para armazenar informações das células vizinhas
 class NeighborCell(db.Model):

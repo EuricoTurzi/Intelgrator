@@ -74,8 +74,15 @@ def receive_data():
 # Rota para obter os dados mais recentes de cada dispositivo
 @device_routes.route('/latest_data', methods=['GET'])
 def get_latest_data():
-    devices = DeviceData.query.order_by(DeviceData.device_id, DeviceData.created_at.desc()).distinct(DeviceData.device_id)
+    # Obtém o dado mais recente de cada dispositivo
+    devices = DeviceData.query.order_by(DeviceData.device_id, DeviceData.created_at.desc()).all()
+    
+    if not devices:
+        return jsonify({"status": "error", "message": "Nenhum dado disponível"}), 404
+
+    # Converte cada dispositivo para dicionário usando `to_dict`
     data = [device.to_dict() for device in devices]
+
     return jsonify(data), 200
 
 # Rota para enviar comandos ao dispositivo e salvar no banco

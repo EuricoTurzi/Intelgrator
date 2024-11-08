@@ -1,0 +1,59 @@
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
+
+db = SQLAlchemy()
+
+# Modelo para armazenar os dados do dispositivo
+class DeviceData(db.Model):
+    __tablename__ = 'device_data'
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.String(20), nullable=False)
+    sw_version = db.Column(db.String(10))
+    model = db.Column(db.String(10))
+    cell_id = db.Column(db.String(10))
+    mcc = db.Column(db.String(5))
+    mnc = db.Column(db.String(5))
+    rx_lvl = db.Column(db.String(5))
+    lac = db.Column(db.String(10))
+    tm_adv = db.Column(db.String(5))
+    backup_voltage = db.Column(db.Float)
+    online_status = db.Column(db.Boolean)
+    message_number = db.Column(db.Integer)
+    mode = db.Column(db.String(5))
+    col_net_rf_ch = db.Column(db.String(5))
+    gps_date = db.Column(db.Date)
+    gps_time = db.Column(db.Time)
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    speed = db.Column(db.Float)
+    course = db.Column(db.Float)
+    satt = db.Column(db.Integer)  # Número de satélites
+    gps_fix = db.Column(db.Boolean)
+    temperature = db.Column(db.Float)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relação com células vizinhas
+    neighbor_cells = db.relationship('NeighborCell', backref='device_data', cascade="all, delete-orphan")
+
+# Modelo para armazenar informações das células vizinhas
+class NeighborCell(db.Model):
+    __tablename__ = 'neighbor_cells'
+    id = db.Column(db.Integer, primary_key=True)
+    device_data_id = db.Column(db.Integer, db.ForeignKey('device_data.id'))
+    cell_id = db.Column(db.String(10))
+    mcc = db.Column(db.String(5))
+    mnc = db.Column(db.String(5))
+    lac = db.Column(db.String(10))
+    rx_lvl = db.Column(db.String(5))
+    tm_adv = db.Column(db.String(5))
+
+# Modelo para armazenar os comandos pendentes a serem enviados para o dispositivo
+class PendingCommand(db.Model):
+    __tablename__ = 'pending_commands'
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.String(20), nullable=False)
+    command = db.Column(db.String(100), nullable=False)
+    status = db.Column(db.String(20), default='pendente')  # Status: 'pendente', 'enviado', 'respondido'
+    response = db.Column(db.String(200), nullable=True)  # Resposta do equipamento
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)

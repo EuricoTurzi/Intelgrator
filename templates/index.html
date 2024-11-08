@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoramento de Equipamentos</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        #map { height: 400px; width: 100%; }
+        #data-table { margin-top: 20px; border-collapse: collapse; width: 100%; }
+        #data-table th, #data-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        #data-table th { background-color: #f2f2f2; }
+        #command-form { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Monitoramento de Equipamentos ST410</h1>
+
+    <!-- Mapa para exibir localização dos dispositivos -->
+    <div id="map"></div>
+
+    <!-- Tabela de dados atualizados dos dispositivos -->
+    <table id="data-table">
+        <thead>
+            <tr>
+                <th>ID do Dispositivo</th>
+                <th>Voltagem de Backup</th>
+                <th>Status Online</th>
+                <th>Modo</th>
+                <th>Data GPS</th>
+                <th>Hora GPS</th>
+                <th>Latitude</th>
+                <th>Longitude</th>
+                <th>GPS Fix</th>
+            </tr>
+        </thead>
+        <tbody id="data-body">
+            <!-- Dados dos dispositivos serão inseridos aqui -->
+        </tbody>
+    </table>
+
+    <!-- Formulário para envio de comandos -->
+    <div id="command-form">
+        <h2>Enviar Comando</h2>
+        <label for="device-id">ID do Dispositivo:</label>
+        <input type="text" id="device-id" placeholder="Digite o ID do dispositivo" required>
+        <label for="command-type">Tipo de Comando:</label>
+        <select id="command-type" required>
+            <option value="">Selecione o Comando</option>
+            <option value="ReqICCID">ReqICCID</option>
+            <option value="StartEmg">StartEmg</option>
+            <option value="StopEmg">StopEmg</option>
+        </select>
+        <button onclick="sendCommand()">Enviar Comando</button>
+        <p id="command-response"></p>
+    </div>
+
+    <!-- Importando bibliotecas -->
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.3.2/socket.io.min.js"></script>
+    <script>
+        // Configuração do mapa
+        var map = L.map('map').setView([-23.636415, -46.512757], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+        var markers = {};
+
+        // Função para atualizar dados na tabela e no mapa
+        function updateData() {
+            fetch('/latest_data')
+                .then(response => response.json())
+                .then(devices => {
+                    const dataBody = document.getElementById("data-body");
+                    dataBody.innerHTML = '';
+
+                    devices.forEach(device => {
+                        var lat = device.latitude;
+                        var lon = device.longitude;
+
+                        // Atualiza ou cria marcador no mapa
+                        if (markers[device.device_id]) {
+                            markers[device.device_id].setLatLng([lat, lon]);
+                        } else {
+                            markers[device.device_id] = L.marker([lat, lon]).addTo(map)
+                                .bindPopup(`<b>ID:</b> ${device.device_id}`);
+                        }
+
+                        // Insere dados na tabela
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${device.device_id}</td>
+                            <td>${device.backup_voltage}</td>
+                            <td>${device.online_status ? 'Sim' : 'Não'}</td>
+                            <td>${device.mode}</td>
+                            <td>${device.gps_date}</td>
+                            <td>${device.gps_time}</td>
+                            <td>${device.latitude}</td>
+                            <td>${device.longitude}</td>
+                            <td>${device.gps_fix ? 'Sim' : 'Não'}</td>
+                        `;
+                        dataBody.appendChild(row);
+                    });
+                })
+                .catch(error => console.error('Erro ao obter dados:', error));
+        }
+
+        // Atualização periódica dos dados
+        setInterval(updateData, 5000);
+
+        // Configuração do SocketIO para receber novos dados em tempo real
+        var socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
+        socket.on('new_data', function(data) {
+            updateData();  // Atualiza a tabela e o mapa
+        });
+
+        // Função para enviar comando
+        function sendCommand() {
+            const deviceId = document.getElementById("device-id").value;
+            const commandType = document.getElementById("command-type").value;
+            const responseText = document.getElementById("command-response");
+
+            if (!deviceId || !commandType) {
+                responseText.textContent = "Por favor, preencha todos os campos.";
+                return;
+            }
+
+            fetch('/send_command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ device_id: deviceId, command_type: commandType })
+            })
+            .then(response => response.json())
+            .then(data => {
+                responseText.textContent = data.status === "success" ? "Comando enviado com sucesso!" : `Erro: ${data.message}`;
+            })
+            .catch(error => {
+                console.error('Erro ao enviar comando:', error);
+                responseText.textContent = "Erro ao enviar comando.";
+            });
+        }
+    </script>
+</body>
+</html>

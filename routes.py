@@ -5,36 +5,71 @@ from datetime import datetime
 
 device_routes = Blueprint('device_routes', __name__)
 
-# Rota para receber dados do dispositivo e armazená-los
 @device_routes.route('/receive_data', methods=['POST'])
 def receive_data():
-    data = request.json
-    device_id = data['device_id']
+    data = request.json  # Espera dados JSON
 
-    # Validação e criação/atualização de DeviceData e NeighborCell
-    device_data = DeviceData.query.filter_by(device_id=device_id).first()
-    
-    if device_data:
-        db.session.delete(device_data.neighbor_cells)  # Exclui as células vizinhas existentes para atualização
-    else:
-        device_data = DeviceData(device_id=device_id)
+    # Validação: verificar se há exatamente 6 células vizinhas
+    neighbor_cells_data = data.get('neighbor_cells', [])
+    if len(neighbor_cells_data) != 6:
+        return jsonify({'status': 'error', 'message': 'Exatamente 6 células vizinhas são necessárias'}), 400
+
+    # Criação ou atualização do dispositivo
+    device_data = DeviceData.query.filter_by(device_id=data['device_id']).first()
+    if not device_data:
+        # Cria novo registro para o dispositivo
+        device_data = DeviceData(
+            device_id=data['device_id'],
+            sw_version=data['sw_version'],
+            model=data['model'],
+            cell_id=data['cell_id'],
+            mcc=data['mcc'],
+            mnc=data['mnc'],
+            rx_lvl=data['rx_lvl'],
+            lac=data['lac'],
+            tm_adv=data['tm_adv'],
+            backup_voltage=data['backup_voltage'],
+            online_status=data['online_status'],
+            message_number=data['message_number'],
+            mode=data['mode'],
+            col_net_rf_ch=data['col_net_rf_ch'],
+            gps_date=data['gps_date'],
+            gps_time=data['gps_time'],
+            latitude=data['latitude'],
+            longitude=data['longitude'],
+            speed=data['speed'],
+            course=data['course'],
+            satt=data['satt'],
+            gps_fix=data['gps_fix'],
+            temperature=data['temperature']
+        )
         db.session.add(device_data)
+    else:
+        # Atualiza o registro existente
+        for key, value in data.items():
+            if hasattr(device_data, key) and key != 'neighbor_cells':
+                setattr(device_data, key, value)
 
-    # Atualiza ou adiciona os campos de DeviceData
-    for key, value in data.items():
-        if hasattr(device_data, key):
-            setattr(device_data, key, value)
+        # Remove células vizinhas existentes
+        NeighborCell.query.filter_by(device_data_id=device_data.id).delete()
 
-    # Adiciona as novas Neighbor Cells
-    for neighbor in data.get('neighbor_cells', []):
-        neighbor_cell = NeighborCell(device_data=device_data, **neighbor)
+    # Adiciona novas células vizinhas como instâncias do modelo NeighborCell
+    for cell_data in neighbor_cells_data:
+        neighbor_cell = NeighborCell(
+            device_data_id=device_data.id,
+            cell_id=cell_data['cell_id'],
+            mcc=cell_data['mcc'],
+            mnc=cell_data['mnc'],
+            lac=cell_data['lac'],
+            rx_lvl=cell_data['rx_lvl'],
+            tm_adv=cell_data['tm_adv']
+        )
         db.session.add(neighbor_cell)
 
+    # Confirma todas as alterações no banco de dados
     db.session.commit()
-    
-    # Emite o evento para os clientes conectados
-    emit('new_data', data, broadcast=True)
-    return jsonify({'status': 'success'})
+
+    return jsonify({'status': 'success', 'message': 'Dados processados com sucesso'})
 
 # Rota para obter os dados mais recentes de cada dispositivo
 @device_routes.route('/latest_data', methods=['GET'])

@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, render_template
 from models import db
 from routes import device_routes
 from flask_socketio import SocketIO

@@ -188,8 +188,27 @@ def update_device_config():
 
 @device_routes.route('/get_device_config/<device_id>', methods=['GET'])
 def get_device_config(device_id):
+    
     device_config = DeviceConfig.query.filter_by(device_id=device_id).first()
     if not device_config:
         return jsonify({"status": "error", "message": "Configurações não encontradas"}), 404
 
     return jsonify({"status": "success", "config": device_config.to_dict()}), 200
+
+# Rota para obter o comando pendente pelo device_id e command_type
+@device_routes.route('/get_command_by_device_and_type', methods=['GET'])
+def get_command_by_device_and_type():
+    device_id = request.args.get('device_id')
+    command_type = request.args.get('command_type')
+
+    if not device_id or not command_type:
+        return jsonify({"status": "error", "message": "Campos device_id e command_type são obrigatórios"}), 400
+
+    command_string = f"ST410CMD;{device_id};02;{command_type}\n"
+
+    command = PendingCommand.query.filter_by(device_id=device_id, command=command_string).order_by(PendingCommand.created_at.desc()).first()
+
+    if command:
+        return jsonify({"status": "success", "command": {"id": command.id, "command": command.command}})
+    else:
+        return jsonify({"status": "error", "message": "Comando não encontrado"}), 404

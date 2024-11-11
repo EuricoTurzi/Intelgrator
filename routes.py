@@ -2,16 +2,19 @@ from flask import Blueprint, request, jsonify
 from models import db, DeviceData, NeighborCell, PendingCommand, DeviceConfig
 from flask_socketio import emit
 from datetime import datetime
+import json
 
 device_routes = Blueprint('device_routes', __name__)
 
 @device_routes.route('/receive_data', methods=['POST'])
 def receive_data():
     data = request.json  # Espera dados JSON
+    print(f"Dados recebidos na rota '/receive_data': {data}")
 
     # Validação: verificar se há exatamente 6 células vizinhas
     neighbor_cells_data = data.get('neighbor_cells', [])
     if len(neighbor_cells_data) != 6:
+        print("Erro: Exatamente 6 células vizinhas são necessárias")
         return jsonify({'status': 'error', 'message': 'Exatamente 6 células vizinhas são necessárias'}), 400
 
     # Criação ou atualização do dispositivo
@@ -44,11 +47,13 @@ def receive_data():
             temperature=data['temperature']
         )
         db.session.add(device_data)
+        print(f"Criado novo DeviceData para device_id {data['device_id']}")
     else:
         # Atualiza o registro existente
         for key, value in data.items():
             if hasattr(device_data, key) and key != 'neighbor_cells':
                 setattr(device_data, key, value)
+        print(f"Atualizado DeviceData existente para device_id {data['device_id']}")
 
         # Remove células vizinhas existentes
         NeighborCell.query.filter_by(device_data_id=device_data.id).delete()
@@ -67,7 +72,13 @@ def receive_data():
         db.session.add(neighbor_cell)
 
     # Confirma todas as alterações no banco de dados
-    db.session.commit()
+    try:
+        db.session.commit()
+        print("Dados do dispositivo e células vizinhas salvos com sucesso")
+    except Exception as e:
+        db.session.rollback()
+        print(f"Erro ao salvar dados: {e}")
+        return jsonify({'status': 'error', 'message': 'Erro ao salvar dados'}), 500
 
     return jsonify({'status': 'success', 'message': 'Dados processados com sucesso'})
 
@@ -86,6 +97,7 @@ def get_latest_data():
     ).all()
 
     if not devices:
+        print("Nenhum dado disponível")
         return jsonify({"status": "error", "message": "Nenhum dado disponível"}), 404
 
     data = [device.to_dict() for device in devices]
@@ -100,6 +112,7 @@ def send_command():
     command_type = data.get("command_type")
 
     if not device_id or not command_type:
+        print("Erro: Campos device_id e command_type são obrigatórios")
         return jsonify({"status": "error", "message": "Campos device_id e command_type são obrigatórios"}), 400
 
     command_map = {
@@ -111,12 +124,14 @@ def send_command():
 
     command = command_map.get(command_type)
     if not command:
+        print("Erro: Comando inválido")
         return jsonify({"status": "error", "message": "Comando inválido"}), 400
 
     # Salva o comando como pendente no banco de dados
     pending_command = PendingCommand(device_id=device_id, command=command)
     db.session.add(pending_command)
     db.session.commit()
+    print(f"Comando '{command_type}' salvo e aguardando envio para device_id {device_id}")
 
     return jsonify({"status": "success", "message": "Comando salvo e aguardando envio"}), 200
 
@@ -128,6 +143,7 @@ def check_pending_commands():
     """
     device_id = request.args.get('device_id')
     if not device_id:
+        print("Erro: device_id é obrigatório")
         return jsonify({"status": "error", "message": "device_id é obrigatório"}), 400
 
     pending_commands = PendingCommand.query.filter_by(device_id=device_id, status='pendente').all()
@@ -142,36 +158,50 @@ def update_command_status():
     Atualiza o status do comando e armazena a resposta do dispositivo.
     """
     data = request.json
+    print(f"Dados recebidos na rota '/update_command_status': {data}")
     command_id = data.get("command_id")
     status = data.get("status")
-    response = data.get("response", None)
+    response_text = data.get("response", None)
 
     if not command_id or not status:
+        print("Erro: Campos command_id e status são obrigatórios")
         return jsonify({"status": "error", "message": "Campos command_id e status são obrigatórios"}), 400
 
     command = PendingCommand.query.get(command_id)
     if not command:
+        print(f"Erro: Comando com ID {command_id} não encontrado")
         return jsonify({"status": "error", "message": "Comando não encontrado"}), 404
 
     command.status = status
-    command.response = response
-    db.session.commit()
+    command.response = response_text
+    try:
+        db.session.commit()
+        print(f"Status do comando ID {command_id} atualizado para '{status}'")
+    except Exception as e:
+        db.session.rollback()
+        print(f"Erro ao atualizar status do comando: {e}")
+        return jsonify({"status": "error", "message": "Erro ao atualizar status do comando"}), 500
 
     return jsonify({"status": "success", "message": "Status do comando atualizado com sucesso"})
 
 @device_routes.route('/update_device_config', methods=['POST'])
 def update_device_config():
     data = request.json
+    print(f"Dados recebidos na rota '/update_device_config': {data}")
     device_id = data.get('device_id')
     config_data = data.get('config_data')
 
     if not device_id or not config_data:
+        print("Erro: Campos device_id e config_data são obrigatórios")
         return jsonify({"status": "error", "message": "Campos device_id e config_data são obrigatórios"}), 400
 
     device_config = DeviceConfig.query.filter_by(device_id=device_id).first()
     if not device_config:
         device_config = DeviceConfig(device_id=device_id)
         db.session.add(device_config)
+        print(f"Criado novo DeviceConfig para device_id {device_id}")
+    else:
+        print(f"Atualizando DeviceConfig existente para device_id {device_id}")
 
     # Atualiza as configurações
     device_config.ntw_config = config_data.get('NTW')
@@ -182,15 +212,23 @@ def update_device_config():
     device_config.gps_config = config_data.get('GPS')
     device_config.last_updated = datetime.utcnow()
 
-    db.session.commit()
+    print(f"DeviceConfig atualizado: {device_config.to_dict()}")
+
+    try:
+        db.session.commit()
+        print("Configurações salvas com sucesso no banco de dados")
+    except Exception as e:
+        db.session.rollback()
+        print(f"Erro ao salvar configurações: {e}")
+        return jsonify({"status": "error", "message": "Erro ao salvar configurações"}), 500
 
     return jsonify({"status": "success", "message": "Configurações atualizadas com sucesso"}), 200
 
 @device_routes.route('/get_device_config/<device_id>', methods=['GET'])
 def get_device_config(device_id):
-    
     device_config = DeviceConfig.query.filter_by(device_id=device_id).first()
     if not device_config:
+        print(f"Configurações não encontradas para device_id {device_id}")
         return jsonify({"status": "error", "message": "Configurações não encontradas"}), 404
 
     return jsonify({"status": "success", "config": device_config.to_dict()}), 200
@@ -202,13 +240,20 @@ def get_command_by_device_and_type():
     command_type = request.args.get('command_type')
 
     if not device_id or not command_type:
+        print("Erro: Campos device_id e command_type são obrigatórios")
         return jsonify({"status": "error", "message": "Campos device_id e command_type são obrigatórios"}), 400
 
     command_string = f"ST410CMD;{device_id};02;{command_type}\n"
 
-    command = PendingCommand.query.filter_by(device_id=device_id, command=command_string).order_by(PendingCommand.created_at.desc()).first()
+    command = PendingCommand.query.filter(
+        PendingCommand.device_id == device_id,
+        PendingCommand.command.like(f"%{command_type}%"),
+        PendingCommand.status == 'pendente'
+    ).order_by(PendingCommand.created_at.desc()).first()
 
     if command:
+        print(f"Comando encontrado: ID {command.id}")
         return jsonify({"status": "success", "command": {"id": command.id, "command": command.command}})
     else:
+        print(f"Erro: Comando não encontrado para device_id {device_id} e command_type {command_type}")
         return jsonify({"status": "error", "message": "Comando não encontrado"}), 404

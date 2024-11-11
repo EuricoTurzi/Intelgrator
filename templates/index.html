@@ -141,7 +141,7 @@
     .modal {
         display: none; /* Oculto por padrão */
         position: fixed;
-        z-index: 1;
+        z-index: 1000; /* Define um z-index alto para que o modal fique acima de outros elementos */
         left: 0;
         top: 0;
         width: 100%;
@@ -149,16 +149,52 @@
         overflow: auto;
         background-color: rgba(0,0,0,0.4);
     }
-    .modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; }
-    .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
-    .close:hover, .close:focus { color: black; text-decoration: none; cursor: pointer; }
+    .modal-content {
+        background-color: #fefefe;
+        margin: 5% auto;
+        padding: 20px;
+        border: 1px solid #888;
+        width: 80%;
+        position: relative;
+        z-index: 1001; /* Assegura que o conteúdo do modal esteja acima do fundo */
+    }
+    .close {
+        color: #aaa;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+    }
+    .close:hover, .close:focus {
+        color: black;
+        text-decoration: none;
+        cursor: pointer;
+    }
 
     /* Estilos para as Tabs */
-    .tab { overflow: hidden; border-bottom: 1px solid #ccc; }
-    .tab button { background-color: inherit; float: left; border: none; outline: none; cursor: pointer; padding: 14px 16px; transition: 0.3s; }
-    .tab button:hover { background-color: #ddd; }
-    .tab button.active { background-color: #ccc; }
-    .tabcontent { display: none; padding: 6px 12px; border-top: none; }
+    .tab {
+        overflow: hidden;
+        border-bottom: 1px solid #ccc;
+    }
+    .tab button {
+        background-color: inherit;
+        float: left;
+        border: none;
+        outline: none;
+        cursor: pointer;
+        padding: 14px 16px;
+        transition: 0.3s;
+    }
+    .tab button:hover {
+        background-color: #ddd;
+    }
+    .tab button.active {
+        background-color: #ccc;
+    }
+    .tabcontent {
+        display: none;
+        padding: 6px 12px;
+        border-top: none;
+    }
     </style>
 
     <!-- Importando bibliotecas -->

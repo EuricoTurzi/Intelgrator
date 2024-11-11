@@ -23,6 +23,7 @@ ENV/
 instance/
 config.py
 servidor.py
+servidor-backup.py
 
 # IDEs e Ferramentas de Desenvolvimento
 .vscode/

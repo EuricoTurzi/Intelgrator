@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, DeviceData, NeighborCell, PendingCommand
+from models import db, DeviceData, NeighborCell, PendingCommand, DeviceConfig
 from flask_socketio import emit
 from datetime import datetime
 
@@ -74,13 +74,20 @@ def receive_data():
 # Rota para obter os dados mais recentes de cada dispositivo
 @device_routes.route('/latest_data', methods=['GET'])
 def get_latest_data():
-    # Obtém o dado mais recente de cada dispositivo
-    devices = DeviceData.query.order_by(DeviceData.device_id, DeviceData.created_at.desc()).all()
-    
+    subquery = db.session.query(
+        DeviceData.device_id,
+        db.func.max(DeviceData.created_at).label('max_created_at')
+    ).group_by(DeviceData.device_id).subquery()
+
+    devices = db.session.query(DeviceData).join(
+        subquery,
+        (DeviceData.device_id == subquery.c.device_id) & 
+        (DeviceData.created_at == subquery.c.max_created_at)
+    ).all()
+
     if not devices:
         return jsonify({"status": "error", "message": "Nenhum dado disponível"}), 404
 
-    # Converte cada dispositivo para dicionário usando `to_dict`
     data = [device.to_dict() for device in devices]
 
     return jsonify(data), 200
@@ -98,7 +105,8 @@ def send_command():
     command_map = {
         "ReqICCID": f"ST410CMD;{device_id};02;ReqICCID\n",
         "StartEmg": f"ST410CMD;{device_id};02;StartEmg\n",
-        "StopEmg": f"ST410CMD;{device_id};02;StopEmg\n"
+        "StopEmg": f"ST410CMD;{device_id};02;StopEmg\n",
+        "Preset": f"ST410CMD;{device_id};02;Preset\n",
     }
 
     command = command_map.get(command_type)
@@ -150,3 +158,38 @@ def update_command_status():
     db.session.commit()
 
     return jsonify({"status": "success", "message": "Status do comando atualizado com sucesso"})
+
+@device_routes.route('/update_device_config', methods=['POST'])
+def update_device_config():
+    data = request.json
+    device_id = data.get('device_id')
+    config_data = data.get('config_data')
+
+    if not device_id or not config_data:
+        return jsonify({"status": "error", "message": "Campos device_id e config_data são obrigatórios"}), 400
+
+    device_config = DeviceConfig.query.filter_by(device_id=device_id).first()
+    if not device_config:
+        device_config = DeviceConfig(device_id=device_id)
+        db.session.add(device_config)
+
+    # Atualiza as configurações
+    device_config.ntw_config = config_data.get('NTW')
+    device_config.tim_config = config_data.get('TIM')
+    device_config.npt_config = config_data.get('NPT')
+    device_config.pfc_config = config_data.get('PFC')
+    device_config.pdl_config = config_data.get('PDL')
+    device_config.gps_config = config_data.get('GPS')
+    device_config.last_updated = datetime.utcnow()
+
+    db.session.commit()
+
+    return jsonify({"status": "success", "message": "Configurações atualizadas com sucesso"}), 200
+
+@device_routes.route('/get_device_config/<device_id>', methods=['GET'])
+def get_device_config(device_id):
+    device_config = DeviceConfig.query.filter_by(device_id=device_id).first()
+    if not device_config:
+        return jsonify({"status": "error", "message": "Configurações não encontradas"}), 404
+
+    return jsonify({"status": "success", "config": device_config.to_dict()}), 200

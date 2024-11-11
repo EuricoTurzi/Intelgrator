@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitoramento de Equipamentos</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <style>
@@ -32,6 +31,7 @@
                 <th>Latitude</th>
                 <th>Longitude</th>
                 <th>GPS Fix</th>
+                <th>Ações</th>
             </tr>
         </thead>
         <tbody id="data-body">
@@ -42,23 +42,301 @@
     <!-- Formulário para envio de comandos -->
     <div id="command-form">
         <h2>Enviar Comando</h2>
-        <label for="device-id">ID do Dispositivo:</label>
-        <input type="text" id="device-id" placeholder="Digite o ID do dispositivo" required>
+        <label for="command-device-id">ID do Dispositivo:</label>
+        <input type="text" id="command-device-id" placeholder="Digite o ID do dispositivo" required>
         <label for="command-type">Tipo de Comando:</label>
         <select id="command-type" required>
             <option value="">Selecione o Comando</option>
             <option value="ReqICCID">ReqICCID</option>
             <option value="StartEmg">StartEmg</option>
             <option value="StopEmg">StopEmg</option>
+            <option value="Preset">Preset</option>
         </select>
         <button onclick="sendCommand()">Enviar Comando</button>
         <p id="command-response"></p>
     </div>
 
+    <!-- Modal de Configurações -->
+    <div id="configModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeConfigModal()">&times;</span>
+            <h2>Configurações do Dispositivo</h2>
+            
+            <!-- Abas -->
+            <div class="tab">
+                <button class="tablinks" onclick="openTab(event, 'NTW')">NTW (Rede)</button>
+                <button class="tablinks" onclick="openTab(event, 'TIM')">TIM (Tempo)</button>
+                <button class="tablinks" onclick="openTab(event, 'NPT')">NPT (Parâmetros)</button>
+                <button class="tablinks" onclick="openTab(event, 'PFC')">PFC (Função Presença)</button>
+                <button class="tablinks" onclick="openTab(event, 'GPS')">GPS</button>
+            </div>
+
+            <!-- Conteúdo das Abas -->
+
+            <!-- Aba NTW -->
+            <div id="NTW" class="tabcontent">
+                <h3>Parâmetros de Rede</h3>
+                <label>Autenticação:</label><input type="text" id="ntw_auth"><br>
+                <label>APN:</label><input type="text" id="ntw_apn"><br>
+                <label>Usuário:</label><input type="text" id="ntw_user"><br>
+                <label>Senha:</label><input type="password" id="ntw_password"><br>
+                <label>IP do Servidor:</label><input type="text" id="ntw_server_ip"><br>
+                <label>Porta:</label><input type="text" id="ntw_server_port"><br>
+                <label>IP Backup:</label><input type="text" id="ntw_backup_ip"><br>
+                <label>Porta Backup:</label><input type="text" id="ntw_backup_port"><br>
+                <label>Número do SMS:</label><input type="text" id="ntw_sms_number"><br>
+                <label>Número do PIN:</label><input type="text" id="ntw_pin_number"><br>
+            </div>
+
+            <!-- Aba TIM -->
+            <div id="TIM" class="tabcontent">
+                <h3>Parâmetros de Tempo</h3>
+                <label>Intervalo RX modo normal (sec):</label><input type="text" id="tim_rx_interval_normal_sec"><br>
+                <label>Período RX modo normal (ms):</label><input type="text" id="tim_rx_period_normal_ms"><br>
+                <label>Intervalo GPRS modo normal (min):</label><input type="text" id="tim_gprs_interval_normal_min"><br>
+                <label>Intervalo RX modo emergência (sec):</label><input type="text" id="tim_rx_interval_emergency_sec"><br>
+                <label>Intervalo transmissão em emergência:</label><input type="text" id="tim_tx_interval_emergency"><br>
+                <label>Intervalo GPRS modo emergência (min):</label><input type="text" id="tim_gprs_interval_emergency_min"><br>
+                <label>Período RX modo emergência (ms):</label><input type="text" id="tim_rx_period_emergency_ms"><br>
+                <label>Tempo para entrar em sleep (sec):</label><input type="text" id="tim_sleep_time_sec"><br>
+                <label>Tempo para confirmar jammer (min):</label><input type="text" id="tim_jammer_confirm_time_min"><br>
+            </div>
+
+            <!-- Aba NPT -->
+            <div id="NPT" class="tabcontent">
+                <h3>Novos Parâmetros</h3>
+                <label>Detecção de Jammer:</label><input type="text" id="npt_jammer_detection"><br>
+                <label>Emergência por abertura de caixa:</label><input type="text" id="npt_box_open_emergency"><br>
+                <label>Desligamento pelo botão:</label><input type="text" id="npt_button_shutdown"><br>
+                <label>Largura de banda:</label><input type="text" id="npt_bandwidth"><br>
+                <label>Canal RF:</label><input type="text" id="npt_rf_channel"><br>
+                <label>Mensagem estendida:</label><input type="text" id="npt_extended_message"><br>
+                <label>Manter ligado quando jammer detectado:</label><input type="text" id="npt_keep_on_jammer"><br>
+                <label>Report de temperatura:</label><input type="text" id="npt_temperature_report"><br>
+                <label>LED funcional:</label><input type="text" id="npt_functional_led"><br>
+            </div>
+
+            <!-- Aba PFC -->
+            <div id="PFC" class="tabcontent">
+                <h3>Função de Presença</h3>
+                <label>Tipo de função presença:</label><input type="text" id="pfc_presence_function_type"><br>
+                <label>Ação da função presença:</label><input type="text" id="pfc_presence_action"><br>
+                <label>Intervalo para envio de PMR:</label><input type="text" id="pfc_pmr_interval"><br>
+                <label>Tempo limite para receber PM:</label><input type="text" id="pfc_pm_timeout"><br>
+            </div>
+
+            <!-- Aba GPS -->
+            <div id="GPS" class="tabcontent">
+                <h3>Parâmetros de GPS</h3>
+                <label>Tempo máximo para fixar GPS:</label><input type="text" id="gps_fix_timeout"><br>
+            </div>
+
+            <button onclick="saveConfig()">Salvar Configurações</button>
+        </div>
+    </div>
+
+    <!-- Estilos do Modal e Tabs -->
+    <style>
+    /* Estilos do Modal */
+    .modal {
+        display: none; /* Oculto por padrão */
+        position: fixed;
+        z-index: 1;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0,0,0,0.4);
+    }
+    .modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; }
+    .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
+    .close:hover, .close:focus { color: black; text-decoration: none; cursor: pointer; }
+
+    /* Estilos para as Tabs */
+    .tab { overflow: hidden; border-bottom: 1px solid #ccc; }
+    .tab button { background-color: inherit; float: left; border: none; outline: none; cursor: pointer; padding: 14px 16px; transition: 0.3s; }
+    .tab button:hover { background-color: #ddd; }
+    .tab button.active { background-color: #ccc; }
+    .tabcontent { display: none; padding: 6px 12px; border-top: none; }
+    </style>
+
     <!-- Importando bibliotecas -->
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.3.2/socket.io.min.js"></script>
     <script>
+        // Variável global para armazenar o device_id atual
+        let currentDeviceId = null;
+
+        // Função para abrir o modal
+        function openConfigModal(deviceId) {
+            currentDeviceId = deviceId;
+            document.getElementById("configModal").style.display = "block";
+            if (!deviceId) {
+                alert("ID do dispositivo não fornecido.");
+                closeConfigModal();
+                return;
+            }
+            loadDeviceConfig(deviceId);
+        }
+
+        // Função para fechar o modal
+        function closeConfigModal() {
+            document.getElementById("configModal").style.display = "none";
+        }
+
+        // Função para abrir uma aba
+        function openTab(evt, tabName) {
+            let i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tabcontent");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            tablinks = document.getElementsByClassName("tablinks");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.className += " active";
+        }
+
+        // Função para carregar as configurações do dispositivo
+        function loadDeviceConfig(deviceId) {
+            fetch(`/get_device_config/${deviceId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === "success") {
+                        const config = data.config;
+                        // Preenche os campos do modal com as configurações
+                        if (config.ntw_config) {
+                            document.getElementById("ntw_auth").value = config.ntw_config.auth || '';
+                            document.getElementById("ntw_apn").value = config.ntw_config.apn || '';
+                            document.getElementById("ntw_user").value = config.ntw_config.user || '';
+                            document.getElementById("ntw_password").value = config.ntw_config.password || '';
+                            document.getElementById("ntw_server_ip").value = config.ntw_config.server_ip || '';
+                            document.getElementById("ntw_server_port").value = config.ntw_config.server_port || '';
+                            document.getElementById("ntw_backup_ip").value = config.ntw_config.backup_ip || '';
+                            document.getElementById("ntw_backup_port").value = config.ntw_config.backup_port || '';
+                            document.getElementById("ntw_sms_number").value = config.ntw_config.sms_number || '';
+                            document.getElementById("ntw_pin_number").value = config.ntw_config.pin_number || '';
+                        }
+                        if (config.tim_config) {
+                            document.getElementById("tim_rx_interval_normal_sec").value = config.tim_config.rx_interval_normal_sec || '';
+                            document.getElementById("tim_rx_period_normal_ms").value = config.tim_config.rx_period_normal_ms || '';
+                            document.getElementById("tim_gprs_interval_normal_min").value = config.tim_config.gprs_interval_normal_min || '';
+                            document.getElementById("tim_rx_interval_emergency_sec").value = config.tim_config.rx_interval_emergency_sec || '';
+                            document.getElementById("tim_tx_interval_emergency").value = config.tim_config.tx_interval_emergency || '';
+                            document.getElementById("tim_gprs_interval_emergency_min").value = config.tim_config.gprs_interval_emergency_min || '';
+                            document.getElementById("tim_rx_period_emergency_ms").value = config.tim_config.rx_period_emergency_ms || '';
+                            document.getElementById("tim_sleep_time_sec").value = config.tim_config.sleep_time_sec || '';
+                            document.getElementById("tim_jammer_confirm_time_min").value = config.tim_config.jammer_confirm_time_min || '';
+                        }
+                        if (config.npt_config) {
+                            document.getElementById("npt_jammer_detection").value = config.npt_config.jammer_detection || '';
+                            document.getElementById("npt_box_open_emergency").value = config.npt_config.box_open_emergency || '';
+                            document.getElementById("npt_button_shutdown").value = config.npt_config.button_shutdown || '';
+                            document.getElementById("npt_bandwidth").value = config.npt_config.bandwidth || '';
+                            document.getElementById("npt_rf_channel").value = config.npt_config.rf_channel || '';
+                            document.getElementById("npt_extended_message").value = config.npt_config.extended_message || '';
+                            document.getElementById("npt_keep_on_jammer").value = config.npt_config.keep_on_jammer || '';
+                            document.getElementById("npt_temperature_report").value = config.npt_config.temperature_report || '';
+                            document.getElementById("npt_functional_led").value = config.npt_config.functional_led || '';
+                        }
+                        if (config.pfc_config) {
+                            document.getElementById("pfc_presence_function_type").value = config.pfc_config.presence_function_type || '';
+                            document.getElementById("pfc_presence_action").value = config.pfc_config.presence_action || '';
+                            document.getElementById("pfc_pmr_interval").value = config.pfc_config.pmr_interval || '';
+                            document.getElementById("pfc_pm_timeout").value = config.pfc_config.pm_timeout || '';
+                        }
+                        if (config.gps_config) {
+                            document.getElementById("gps_fix_timeout").value = config.gps_config.gps_fix_timeout || '';
+                        }
+                        // Abre a primeira aba por padrão
+                        document.getElementById("NTW").style.display = "block";
+                    } else {
+                        alert(data.message);
+                        closeConfigModal();
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar configurações:', error);
+                    alert("Erro ao carregar configurações.");
+                    closeConfigModal();
+                });
+        }
+
+        // Função para salvar as configurações editadas
+        function saveConfig() {
+            if (!currentDeviceId) {
+                alert("ID do dispositivo não definido.");
+                return;
+            }
+
+            const configData = {
+                "device_id": currentDeviceId,
+                "config_data": {
+                    "NTW": {
+                        "auth": document.getElementById("ntw_auth").value,
+                        "apn": document.getElementById("ntw_apn").value,
+                        "user": document.getElementById("ntw_user").value,
+                        "password": document.getElementById("ntw_password").value,
+                        "server_ip": document.getElementById("ntw_server_ip").value,
+                        "server_port": document.getElementById("ntw_server_port").value,
+                        "backup_ip": document.getElementById("ntw_backup_ip").value,
+                        "backup_port": document.getElementById("ntw_backup_port").value,
+                        "sms_number": document.getElementById("ntw_sms_number").value,
+                        "pin_number": document.getElementById("ntw_pin_number").value
+                    },
+                    "TIM": {
+                        "rx_interval_normal_sec": document.getElementById("tim_rx_interval_normal_sec").value,
+                        "rx_period_normal_ms": document.getElementById("tim_rx_period_normal_ms").value,
+                        "gprs_interval_normal_min": document.getElementById("tim_gprs_interval_normal_min").value,
+                        "rx_interval_emergency_sec": document.getElementById("tim_rx_interval_emergency_sec").value,
+                        "tx_interval_emergency": document.getElementById("tim_tx_interval_emergency").value,
+                        "gprs_interval_emergency_min": document.getElementById("tim_gprs_interval_emergency_min").value,
+                        "rx_period_emergency_ms": document.getElementById("tim_rx_period_emergency_ms").value,
+                        "sleep_time_sec": document.getElementById("tim_sleep_time_sec").value,
+                        "jammer_confirm_time_min": document.getElementById("tim_jammer_confirm_time_min").value
+                    },
+                    "NPT": {
+                        "jammer_detection": document.getElementById("npt_jammer_detection").value,
+                        "box_open_emergency": document.getElementById("npt_box_open_emergency").value,
+                        "button_shutdown": document.getElementById("npt_button_shutdown").value,
+                        "bandwidth": document.getElementById("npt_bandwidth").value,
+                        "rf_channel": document.getElementById("npt_rf_channel").value,
+                        "extended_message": document.getElementById("npt_extended_message").value,
+                        "keep_on_jammer": document.getElementById("npt_keep_on_jammer").value,
+                        "temperature_report": document.getElementById("npt_temperature_report").value,
+                        "functional_led": document.getElementById("npt_functional_led").value
+                    },
+                    "PFC": {
+                        "presence_function_type": document.getElementById("pfc_presence_function_type").value,
+                        "presence_action": document.getElementById("pfc_presence_action").value,
+                        "pmr_interval": document.getElementById("pfc_pmr_interval").value,
+                        "pm_timeout": document.getElementById("pfc_pm_timeout").value
+                    },
+                    "GPS": {
+                        "gps_fix_timeout": document.getElementById("gps_fix_timeout").value
+                    }
+                }
+            };
+
+            fetch('/update_device_config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(configData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                closeConfigModal();
+            })
+            .catch(error => {
+                console.error('Erro ao salvar configurações:', error);
+                alert("Erro ao salvar configurações.");
+            });
+        }
+
         // Configuração do mapa
         var map = L.map('map').setView([-23.636415, -46.512757], 12);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -99,6 +377,7 @@
                             <td>${device.latitude}</td>
                             <td>${device.longitude}</td>
                             <td>${device.gps_fix ? 'Sim' : 'Não'}</td>
+                            <td><button onclick="openConfigModal('${device.device_id}')">Ver Configurações</button></td>
                         `;
                         dataBody.appendChild(row);
                     });
@@ -117,7 +396,7 @@
 
         // Função para enviar comando
         function sendCommand() {
-            const deviceId = document.getElementById("device-id").value;
+            const deviceId = document.getElementById("command-device-id").value;
             const commandType = document.getElementById("command-type").value;
             const responseText = document.getElementById("command-response");
 

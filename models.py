@@ -69,3 +69,27 @@ class PendingCommand(db.Model):
     response = db.Column(db.String(200), nullable=True)  # Resposta do equipamento
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+
+class DeviceConfig(db.Model):
+    __tablename__ = 'device_configs'
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.String(20), unique=True, nullable=False)
+    ntw_config = db.Column(db.JSON)
+    tim_config = db.Column(db.JSON)
+    npt_config = db.Column(db.JSON)
+    pfc_config = db.Column(db.JSON)
+    pdl_config = db.Column(db.JSON)
+    gps_config = db.Column(db.JSON)
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "device_id": self.device_id,
+            "ntw_config": self.ntw_config,
+            "tim_config": self.tim_config,
+            "npt_config": self.npt_config,
+            "pfc_config": self.pfc_config,
+            "pdl_config": self.pdl_config,
+            "gps_config": self.gps_config,
+            "last_updated": self.last_updated.isoformat() if self.last_updated else None
+        }
